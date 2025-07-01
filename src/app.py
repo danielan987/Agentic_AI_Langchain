@@ -18,21 +18,25 @@ from geopy.geocoders import Nominatim
 from prophet import Prophet
 from streamlit_folium import st_folium
 
-# LangChain / LangGraph
+from langchain_community.chat_models import ChatOpenAI as CommunityChatOpenAI
+from langchain_community.chat_models.openai import ChatOpenAI as OpenRouterChat
 from langchain_openai import ChatOpenAI
 from langchain.agents import Tool, AgentExecutor
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
-# --- OpenAI model config --- #
-LLM_MODEL = "gpt-4o-mini"
-llm_stream = ChatOpenAI(
-    model_name=LLM_MODEL,
-    streaming=True,            # Stream tokens to Streamlit
+# --- Model config --- #
+LLM_MODEL = "mistralai/mixtral-8x7b"
+llm_stream = OpenRouterChat(
+    model=LLM_MODEL,
+    base_url="https://openrouter.ai/api/v1",
     temperature=0,
-    api_key=st.secrets["openai"]["api_key"],
+    streaming=True,
+    api_key=st.secrets["OPENROUTER_API_KEY"]
 )
+
+
 
 # --- Constants --- #
 LOCATION_IDENTIFIER = "LocationIdentifier"
