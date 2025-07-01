@@ -1,6 +1,6 @@
+
 # ===============================================
 # Agricultural Agentic AI – LangChain Edition
-# *Full script with real‑time, word‑by‑word token streaming*
 # ===============================================
 
 # --- Imports --- #
@@ -19,55 +19,28 @@ from geopy.geocoders import Nominatim
 from prophet import Prophet
 from streamlit_folium import st_folium
 
-from langchain_community.chat_models import ChatOpenAI as CommunityChatOpenAI  # noqa: F401 – kept for future use
+from langchain_community.chat_models import ChatOpenAI as CommunityChatOpenAI
 from langchain_community.chat_models.openai import ChatOpenAI as OpenRouterChat
 from langchain_openai import ChatOpenAI
-from langchain.agents import Tool, AgentExecutor  # noqa: F401 – kept for future use
-from langchain.memory import ConversationBufferMemory  # noqa: F401 – kept for future use
+from langchain.agents import Tool, AgentExecutor
+from langchain.memory import ConversationBufferMemory
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
-from langchain.callbacks.base import BaseCallbackHandler
 
-# --------------------------------------------------------------------------- #
-#                      Model & streaming utilities                            #
-# --------------------------------------------------------------------------- #
-
+# --- Model config --- #
 LLM_MODEL = "mistralai/mixtral-8x7b"
 
-
-def get_llm_stream(callbacks=None):
-    """Factory for an OpenRouterChat LLM with streaming enabled."""
-    return OpenRouterChat(
-        model="mistralai/mixtral-8x7b-instruct",
-        base_url="https://openrouter.ai/api/v1",
-        temperature=0,
-        streaming=True,
-        callbacks=callbacks or [],
-        api_key=st.secrets["OPENROUTER_API_KEY"],
-    )
+llm_stream = OpenRouterChat(
+    model="mistralai/mixtral-8x7b-instruct",
+    base_url="https://openrouter.ai/api/v1",
+    temperature=0,
+    streaming=True,
+    api_key=st.secrets["OPENROUTER_API_KEY"]
+)
 
 
-class StreamlitCallbackHandler(BaseCallbackHandler):
-    """Callback that renders tokens to a Streamlit placeholder word by word."""
 
-    def __init__(self, placeholder):
-        self.placeholder = placeholder
-        self.generated = ""
-
-    def on_llm_new_token(self, token: str, **kwargs):  # type: ignore[override]
-        self.generated += token
-        # Append a cursor ▌ to indicate streaming
-        self.placeholder.markdown(self.generated + "▌")
-
-    def on_llm_end(self, response, **kwargs):  # type: ignore[override]
-        # Remove cursor when finished
-        self.placeholder.markdown(self.generated)
-
-
-# --------------------------------------------------------------------------- #
-#                                Constants                                    #
-# --------------------------------------------------------------------------- #
-
+# --- Constants --- #
 LOCATION_IDENTIFIER = "LocationIdentifier"
 DATA_ANALYST = "DataAnalyst"
 TERMINATION_KEYWORD = "yes"
@@ -76,7 +49,6 @@ AVATARS = {
     "user": "🚜",
     LOCATION_IDENTIFIER: "🌍",
     DATA_ANALYST: "📊",
-    "assistant": "🤖",  # for follow‑up replies
 }
 
 NASA_PARAMETER = "GWETROOT"  # Soil moisture 0‑100 cm
@@ -188,8 +160,7 @@ location_identifier_prompt = ChatPromptTemplate.from_messages(
 
 def location_identifier_agent(search_md: str) -> str:
     """Run the LocationIdentifier LLM with `search_md` injected."""
-    llm = get_llm_stream()  # we don't need callbacks for internal calls
-    chain = location_identifier_prompt | llm
+    chain = location_identifier_prompt | llm_stream
     return chain.invoke({"search_md": [HumanMessage(content=search_md)]}).content
 
 
@@ -216,13 +187,15 @@ data_analyst_prompt = ChatPromptTemplate.from_messages(
 
 
 def data_analyst_agent(forecast_df: pd.DataFrame) -> str:
+    # Convert 'ds' (date) column to string to avoid JSON serialization error
     forecast_df = forecast_df.copy()
-    forecast_df["ds"] = forecast_df["ds"].astype(str)  # JSON serialisable
+    forecast_df["ds"] = forecast_df["ds"].astype(str)
+
     forecast_json = forecast_df.to_dict(orient="records")
 
-    llm = get_llm_stream()
-    chain = data_analyst_prompt | llm
+    chain = data_analyst_prompt | llm_stream
     return chain.invoke({"forecast_json": [HumanMessage(content=json.dumps(forecast_json))]}).content
+
 
 
 # --------------------------------------------------------------------------- #
@@ -230,8 +203,8 @@ def data_analyst_agent(forecast_df: pd.DataFrame) -> str:
 # --------------------------------------------------------------------------- #
 
 st.set_page_config(layout="wide")
-st.title("🌾 Agricultural Agentic AI – LangChain Edition (Streaming)")
-st.write("### Select a location on the map and chat in real‑time")
+st.title("🌾 Agricultural Agentic AI")
+st.write("### Select a location on the map")
 
 # Interactive world map
 world_map = folium.Map(location=[20, 0], zoom_start=2)
@@ -267,7 +240,7 @@ if map_data and map_data["last_clicked"]:
         ]
     )
 
-# --- Display existing conversation --- #
+# --- Display conversation --- #
 st.markdown("### 🤖 Chat with the Agricultural AI Agent")
 for sender, msg in st.session_state.history:
     with st.chat_message(sender, avatar=AVATARS.get(sender, "🤖")):
@@ -275,10 +248,9 @@ for sender, msg in st.session_state.history:
 
 # --- Follow‑up chat --- #
 user_input = st.chat_input(
-    "Ask a follow‑up question about farming, regulations, or the forecast…"
+    "Ask a follow‑up question about farming, regulations, or the forecast..."
 )
 if user_input:
-    # Display user message immediately
     with st.chat_message("user", avatar=AVATARS["user"]):
         st.markdown(user_input)
 
@@ -297,16 +269,8 @@ if user_input:
             HumanMessage(content=f"CONTEXT:\n{context}\n\nQUESTION:\n{user_input}"),
         ]
     )
+    reply = (followup_prompt | llm_stream).invoke({}).content
 
-    # Prepare streaming callback and placeholder
-    with st.chat_message("assistant", avatar=AVATARS["assistant"]):
-        stream_placeholder = st.empty()
-        stream_handler = StreamlitCallbackHandler(stream_placeholder)
-        llm_stream = get_llm_stream(callbacks=[stream_handler])
-
-        # Invoke chain (synchronously; tokens stream via callback)
-        _ = (followup_prompt | llm_stream).invoke({})
-        assistant_text = stream_handler.generated  # full generated text
-
-    # Persist in history *after* display to avoid duplication
-    st.session_state.history.append(("assistant", assistant_text))
+    st.session_state.history.append(("assistant", reply))
+    with st.chat_message("assistant"):
+        st.markdown(reply) 
