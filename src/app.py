@@ -28,8 +28,9 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 # --- Model config --- #
 LLM_MODEL = "mistralai/mixtral-8x7b"
+
 llm_stream = OpenRouterChat(
-    model=LLM_MODEL,
+    model="mistralai/mixtral-8x7b-instruct",
     base_url="https://openrouter.ai/api/v1",
     temperature=0,
     streaming=True,
