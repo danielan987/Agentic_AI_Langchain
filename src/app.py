@@ -201,9 +201,9 @@ def data_analyst_agent(forecast_df: pd.DataFrame) -> str:
 #                       Streamlit user interface                               #
 # --------------------------------------------------------------------------- #
 
-st.set_page_config(page_title="Agricultural Agentic AI", layout="wide")
-st.title("🌾 Agricultural Agentic AI (LangChain Edition)")
-st.write("### 1 ⃣ Pick a location on the map")
+st.set_page_config(layout="wide")
+st.title("🌾 Agricultural Agentic AI")
+st.write("### Select a location on the map")
 
 # Interactive world map
 world_map = folium.Map(location=[20, 0], zoom_start=2)
@@ -240,7 +240,7 @@ if map_data and map_data["last_clicked"]:
     )
 
 # --- Display conversation --- #
-st.markdown("### 🤖 Conversation")
+st.markdown("### 🤖 Chat with the Agricultural AI Agent")
 for sender, msg in st.session_state.history:
     with st.chat_message(sender, avatar=AVATARS.get(sender, "🤖")):
         st.markdown(msg)
