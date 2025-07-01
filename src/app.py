@@ -186,9 +186,15 @@ data_analyst_prompt = ChatPromptTemplate.from_messages(
 
 
 def data_analyst_agent(forecast_df: pd.DataFrame) -> str:
+    # Convert 'ds' (date) column to string to avoid JSON serialization error
+    forecast_df = forecast_df.copy()
+    forecast_df["ds"] = forecast_df["ds"].astype(str)
+
     forecast_json = forecast_df.to_dict(orient="records")
+
     chain = data_analyst_prompt | llm_stream
     return chain.invoke({"forecast_json": [HumanMessage(content=json.dumps(forecast_json))]}).content
+
 
 
 # --------------------------------------------------------------------------- #
