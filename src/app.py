@@ -262,7 +262,7 @@ if user_input:
             SystemMessage(
                 content=(
                     "Act as an expert agricultural assistant.\n"
-                    "Use the existing context below to answer the user's question.\n"
+                    "Use the existing context to answer the prompt.\n"
                     "If the question is unrelated to agriculture, politely refuse."
                 )
             ),
